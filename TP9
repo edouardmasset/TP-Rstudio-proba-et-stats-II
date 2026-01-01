@@ -1,0 +1,281 @@
+################################   TP9   #######################################
+# Qualité de l’air (NO2) et facteurs environnementaux
+# Régression linéaire, diagnostics, colinéarité, interactions et polynômes
+################################################################################
+
+########################
+# 0. Librairies & fonctions
+########################
+
+library(ggplot2)
+library(car)
+
+# Graphique simple NO2 ~ variable
+plot_function1 <- function(var, var_name){
+  ggplot(data) +
+    geom_point(aes_string(x = var, y = "NO2")) +
+    labs(title = paste(var_name, "vs NO2"),
+         x = var_name, y = "NO2") +
+    theme_minimal()
+}
+
+# Graphique NO2 ~ variable, coloré par industries
+plot_function2 <- function(var, var_name){
+  ggplot(data) +
+    geom_point(aes_string(x = var, y = "NO2",
+                          color = "industries")) +
+    labs(title = paste(var_name, "vs NO2"),
+         x = var_name, y = "NO2",
+         color = "Industries") +
+    theme_minimal()
+}
+
+# Observé vs prédit
+plot_predict_observed <- function(model){
+  ggplot() +
+    geom_point(aes(x = data$NO2,
+                   y = predict(model),
+                   color = data$industries)) +
+    geom_abline(intercept = 0, slope = 1, color = "red") +
+    labs(title = "Valeurs observées vs prédites",
+         x = "Valeurs observées",
+         y = "Valeurs prédites",
+         color = "Industries") +
+    theme_minimal()
+}
+
+# Résidus vs valeurs prédites
+plot_residuals <- function(model){
+  ggplot() +
+    geom_point(aes(x = predict(model),
+                   y = resid(model),
+                   color = data$industries)) +
+    labs(title = "Résidus vs valeurs prédites",
+         x = "Valeurs prédites",
+         y = "Résidus",
+         color = "Industries") +
+    theme_minimal()
+}
+
+########################
+# 1. Données
+########################
+NO2 <- c(319.2711, 608.6963, 485.6091, 517.1195, 342.1813, 307.7990, 112.1398, 
+         687.7559, 164.8822, 183.3055, 191.9369, 1051.3104, 723.7440, 774.3356, 
+         228.6620, 665.9495, 412.5163, 524.7685, 664.9960, 966.9943, 237.3996, 
+         957.1463, 881.8740, 324.7447, 241.3995, 410.3431, 468.7158, 227.5643, 
+         10.0000, 453.8644, 251.7871, 285.3553, 138.3654, 957.3831, 300.7611, 
+         577.9134, 1131.5799, 1334.7816, 295.9683, 770.6861, 1254.9076, 592.7081, 
+         548.4659, 381.3152, 297.6530, 1672.5108, 1878.1260, 167.2530, 171.3369, 
+         377.2548)
+densite_vehicules <- c(186,367,214,274,356,283,221,201,364,423,209,145,282,229,
+                        162,367,491,101,317,344,435,436,162,150,162,489,130,236,
+                        162,51,179,269,103,392,273,274,434,452,175,179,102,221,
+                        267,209,247,465,296,373,488,252)         
+temperature_min <- c(20.657877,21.389165,14.470011,15.440717,9.858180,21.553298,
+                     22.076810,11.536720,17.635369,19.067995,18.352289,19.621045,
+                     15.927883,7.027465,22.202760,23.624238,17.823982,11.963355,
+                     12.478566,9.896952,18.439612,17.815774,15.422875,21.060492,
+                     7.202163,16.166457,7.060478,13.004767,20.023360,10.935095,
+                     22.790362,18.309071,27.871154,14.914573,6.949110,15.806023,
+                     9.063923,18.528516,15.194057,15.732560,15.386197,17.856809,
+                     12.605639,18.395326,22.780586,12.183805,11.100208,14.059863,
+                     17.574654,13.999721)
+temperature_max <- c(26.81943,26.80000,18.37755,18.97067,12.79979,25.95364,
+                     26.49698,15.66427,23.08820,26.08535,21.13144,24.23701,
+                     20.87417,13.91573,25.24674,26.62553,23.67251,15.22751,
+                     16.24410,14.34786,23.84989,26.34195,22.12243,24.70268,
+                     15.66179,20.72931,13.15064,16.14110,24.39337,18.80203,
+                     26.04691,22.68980,33.67211,20.46883,12.96797,19.82735,
+                     15.18492,24.88590,20.20990,19.31364,19.37934,23.70170,
+                     17.73769,23.88525,25.22786,18.28929,15.36977,17.43517,
+                     23.55055,20.46239)
+humidite <- c(40.39766,39.38622,45.01457,62.95360,72.87576,69.61184,46.79603,
+              87.29192,74.27382,63.26124,66.70324,55.17600,44.86386,51.35836,
+              75.47077,30.86361,36.96436,32.76016,32.44373,81.32764,72.21947,
+              58.45043,35.87005,59.49695,58.40831,40.39211,56.03110,53.91028,
+              66.95101,68.10562,32.71824,52.47676,67.55159,60.18818,81.38939,
+              69.52162,39.77607,34.23412,68.54516,31.59068,65.14653,86.41381,
+              64.52845,53.29020,68.59729,57.49517,62.73701,86.48789,53.16616,
+              87.67143)
+vent <- c(6.5732909,13.4503691,15.0474906,15.8315809,15.7923629,1.8241221,
+          9.8884061,1.1511752,10.9905776,8.8306100,17.7540837,7.0183003,
+          2.3413403,2.8598336,15.2302126,12.3643613,2.0224535,1.6821361,
+          14.0193826,1.4552601,16.4372012,14.1248445,1.6269756,1.6967543,
+          19.7327916,7.4854159,7.4128429,16.2559913,18.9449715,19.7200213,
+          15.0675637,7.5251917,1.6700143,15.5429383,11.1680850,8.4844402,
+          18.1270877,2.2239496,9.8525021,0.2270729,9.3732128,1.1260655,
+          2.3763583,2.3505249,12.9842060,14.9208976,11.6673753,19.2434510,
+          7.4974116,5.7142417)
+precipitations <- c(8.1055333,9.8727613,1.5041689,5.9413072,3.8089086,9.6991440,
+                    8.4211892,8.3832870,4.6869316,4.1481950,2.7340707,0.5637550,
+                    8.6472238,8.1290101,9.9971767,9.9663684,5.5543171,7.6898742,
+                    9.4476573,8.4964739,2.4734810,4.5054414,1.2915942,9.5405103,
+                    6.0617463,2.2864281,6.7170068,6.1812824,3.5816272,1.1355759,
+                    6.7157320,5.2030770,7.7231839,5.2016350,8.5218150,5.5190684,
+                    5.6093797,8.7665360,4.0348287,1.3401523,0.2878268,7.5513726,
+                    6.2030955,7.0407977,2.1296416,1.3637148,0.1454467,3.5058756,
+                    5.8991769,3.9224405)
+industries <- c(1,1,0,1,0,0,0,1,0,0,0,1,1,1,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0,1,0,
+                0,1,0,1,1,1,0,0,0,1,0,0,0,1,1,0,0,0)
+
+# Combinaison des données
+data <- data.frame(
+  NO2,
+  densite_vehicules,
+  temperature_min,
+  temperature_max,
+  humidite,
+  vent,
+  precipitations,
+  industries = factor(industries)
+)
+
+summary(data)
+
+########################
+# 2. Exploration des données
+########################
+
+# Corrélations
+cor(data[, 1:7])
+
+pairs(data[, 1:7], main = "Matrice de dispersion")
+
+# Graphiques simples
+plot_function1("densite_vehicules", "Densité de véhicules")
+plot_function1("temperature_min", "Température minimale")
+plot_function1("temperature_max", "Température maximale")
+plot_function1("humidite", "Humidité")
+plot_function1("vent", "Vent")
+plot_function1("precipitations", "Précipitations")
+
+# Graphiques avec industries
+plot_function2("densite_vehicules", "Densité de véhicules")
+plot_function2("temperature_min", "Température minimale")
+plot_function2("temperature_max", "Température maximale")
+plot_function2("humidite", "Humidité")
+plot_function2("vent", "Vent")
+plot_function2("precipitations", "Précipitations")
+
+# Effet industrie seul
+plot(data$industries, data$NO2,
+     main = "Présence d'industries vs NO2",
+     xlab = "Industries", ylab = "NO2")
+
+t.test(NO2 ~ industries, data = data)
+
+########################
+# 3. Modèle linéaire complet
+########################
+
+mod_full <- lm(NO2 ~ ., data = data)
+summary(mod_full)
+
+vif(mod_full)
+
+########################
+# 4. Colinéarité température min / max
+########################
+
+ggplot(data) +
+  geom_point(aes(temperature_min, temperature_max)) +
+  theme_minimal()
+
+# Température moyenne
+data$temperature <- (temperature_min + temperature_max) / 2
+
+mod_tempavg <- lm(
+  NO2 ~ densite_vehicules + temperature +
+    humidite + vent + precipitations + industries,
+  data = data
+)
+summary(mod_tempavg)
+
+plot_predict_observed(mod_tempavg)
+plot_residuals(mod_tempavg)
+hist(resid(mod_tempavg), main = "Histogramme des résidus", xlab = "Résidus")
+
+anova(mod_tempavg, mod_full)
+
+########################
+# 5. Prédiction
+########################
+
+nouveau_jour <- data.frame(
+  densite_vehicules = 300,
+  temperature = 21,
+  humidite = 50,
+  vent = 5,
+  precipitations = 2,
+  industries = factor(1, levels = c(0, 1))
+)
+
+predict(mod_tempavg, newdata = nouveau_jour)
+
+########################
+# 6. Interactions
+########################
+
+ggplot(data) +
+  geom_point(aes(humidite, NO2, color = industries)) +
+  labs(title = "Humidité vs NO2 selon la présence d'industries",
+       x = "Humidité", y = "NO2") +
+  theme_minimal()
+
+mod_humidite_interaction <- lm(
+  NO2 ~ densite_vehicules + temperature +
+    humidite * industries + vent + precipitations,
+  data = data
+)
+summary(mod_humidite_interaction)
+
+mod_sans_humidite <- lm(
+  NO2 ~ densite_vehicules + temperature +
+    vent + precipitations + industries,
+  data = data
+)
+anova(mod_sans_humidite, mod_humidite_interaction)
+
+########################
+# 7. Modèles avec interactions multiples
+########################
+
+mod_interaction <- lm(
+  NO2 ~ densite_vehicules * industries +
+    temperature + vent + precipitations,
+  data = data
+)
+summary(mod_interaction)
+
+mod_interactions_full <- lm(
+  NO2 ~ densite_vehicules * industries +
+    temperature * vent +
+    temperature * precipitations +
+    vent * precipitations,
+  data = data
+)
+summary(mod_interactions_full)
+
+########################
+# 8. Modèles polynomiaux
+########################
+
+mod_poly <- lm(
+  NO2 ~ densite_vehicules * industries +
+    temperature + vent +
+    precipitations + I(precipitations^2),
+  data = data
+)
+summary(mod_poly)
+
+mod_poly_reduced <- lm(
+  NO2 ~ industries + temperature +
+    vent + precipitations + I(precipitations^2),
+  data = data
+)
+anova(mod_poly_reduced, mod_poly)
+
+plot_predict_observed(mod_poly)
+plot_residuals(mod_poly)
+hist(resid(mod_poly), main = "Histogramme des résidus", xlab = "Résidus")
