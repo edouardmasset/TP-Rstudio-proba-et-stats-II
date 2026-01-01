@@ -1,0 +1,186 @@
+library(ggplot2)
+
+#### Exercice D3 ----
+delta_poids <- c(551,369,378,380,397,400,405)
+proteines <- c(-3,-2,-1,0,1,2,3)
+mineraux <- c(-1,0,1,-1,1,0,-1)
+
+data <- data.frame(delta_poids, proteines, mineraux)
+
+ggplot(aes(x=mineraux,y=delta_poids),data=data) +
+  geom_point() + theme_classic()
+ggplot(aes(x=proteines,y=delta_poids),data=data) +
+  geom_point() + theme_classic()
+
+model <- lm(delta_poids ~ ., data = data)
+summary(model)
+
+ggplot(aes(x=delta_poids,y=predict(model)),data=data) + geom_point() + 
+  geom_abline(intercept = 0, slope = 1, col = "red") + theme_classic() + 
+  scale_x_continuous(limits = c(350,552),expand=c(0,0)) + 
+  scale_y_continuous(limits = c(350,552),expand=c(0,0))
+
+#### Exercice D4 ----
+Y <- c(121,125,149,148,170,177)
+temperature <- c(20,20,25,25,30,30)
+pH <- c(5,9,7,7,5,9)
+
+ggplot() + geom_point(aes(x=temperature,y=Y)) + theme_classic()
+ggplot() + geom_point(aes(x=pH,y=Y)) + theme_classic()
+
+temperature_t <- (temperature-25)/5
+pH_t <- (pH-7)/2
+
+data_t <- data.frame(Y, temperature_t, pH_t)
+model_t <- lm(Y ~ ., data = data_t)
+summary(model_t)
+
+data <- data.frame(Y, temperature, pH)
+model <- lm(Y ~ ., data = data)
+summary(model)
+
+# Test d'hypothese sur b1 et b2
+b1 <- model_t$coefficients[2]
+b2 <- model_t$coefficients[3]
+
+diffb <- -b1+8*b2
+var_beta <- vcov(model_t)
+c <- c(0,-1, 8)
+
+S2_L <- as.numeric(t(c) %*% var_beta %*% c)
+
+as.numeric(2*pnorm((diffb/sqrt(S2_L))))
+
+# Autres fonctions utiles
+confint(model)
+model.matrix(model)
+
+#### Exercice D11 ----
+doses <- c(0,60,120)
+rendement <- c(23,27.6,30.7,19.1,22.7,25.4,22.3,27.1,28.2)
+variete <- c("1","1","1","2","2","2","3","3","3")
+
+data <- data.frame(doses, rendement, variete)
+ggplot(aes(x=doses,y=rendement,col=as.factor(variete)),data=data) + geom_point() + 
+  theme_classic() + labs(color = "Variété", x = "Doses", y = "Rendement")
+
+# Ordonnees a l'origine et pentes differentes
+model_1 <- lm(rendement ~ doses * variete, data = data)
+summary(model_1)
+
+ggplot() + geom_point(aes(x=doses,y=rendement,col=as.factor(variete)),data=data) +
+  geom_abline(intercept = model_1$coefficients[1], slope = model_1$coefficients[2], col = "red") + 
+  geom_abline(intercept = (model_1$coefficients[1] + model_1$coefficients[3]), 
+              slope = (model_1$coefficients[2] + model_1$coefficients[5]), col = "green") + 
+  geom_abline(intercept = (model_1$coefficients[1] + model_1$coefficients[4]), 
+              slope = (model_1$coefficients[2] + model_1$coefficients[6]), col = "blue") +
+  theme_classic() + labs(color = "Variété", x = "Doses", y = "Rendement")
+
+ggplot() + geom_point(aes(x=rendement,y=predict(model_1))) + theme_classic()+
+  geom_abline(intercept = 0, slope = 1, col = "red")
+
+# Calculer le coefficient de determination
+SCR <- sum(residuals(model_1)^2)
+SCT <- sum(residuals(lm(rendement~1,data))^2)
+
+R_2 <- 1-SCR/SCT
+R_2_ajuste <- 1-(SCR/(9-6))/(SCT/(9-1))
+  
+# Calculer les parametres du modele
+coeffs <- coef(model_1)
+
+intercepts <- c(
+  variete_1 = coeffs["(Intercept)"],
+  variete_2 = coeffs["(Intercept)"] + coeffs["variete2"],
+  variete_3 = coeffs["(Intercept)"] + coeffs["variete3"])
+
+slopes <- c(
+  variete_1 = coeffs["doses"],
+  variete_2 = coeffs["doses"] + coeffs["doses:variete2"],
+  variete_3 = coeffs["doses"] + coeffs["doses:variete3"])
+
+results <- data.frame(
+  Variete = c("1", "2", "3"),
+  Intercept = intercepts,
+  Slope = slopes)
+
+print(results, row.names = FALSE)
+
+# Ordonnees a l'origine identiques
+model_2 <- lm(rendement ~ doses + variete, data = data)
+summary(model_2)
+
+ggplot() + geom_point(aes(x=doses,y=rendement,col=as.factor(variete)),data=data) +
+  geom_abline(intercept = model_1$coefficients[1], slope = model_1$coefficients[2], col = "red") + 
+  geom_abline(intercept = (model_1$coefficients[1] + model_1$coefficients[3]), 
+              slope = (model_1$coefficients[2]), col = "green") + 
+  geom_abline(intercept = (model_1$coefficients[1] + model_1$coefficients[4]), 
+              slope = (model_1$coefficients[2]), col = "blue") +
+  theme_classic() + labs(color = "Variété", x = "Doses", y = "Rendement")
+
+ggplot() + geom_point(aes(x=rendement,y=predict(model_2))) + theme_classic()+
+  geom_abline(intercept = 0, slope = 1, col = "red")
+
+# Calculer les parametres du modele
+coeffs <- coef(model_2)
+
+intercepts <- c(
+  variete_1 = coeffs["(Intercept)"],
+  variete_2 = coeffs["(Intercept)"] + coeffs["variete2"],
+  variete_3 = coeffs["(Intercept)"] + coeffs["variete3"])
+
+slopes <- c(
+  variete_1 = coeffs["doses"],
+  variete_2 = coeffs["doses"],
+  variete_3 = coeffs["doses"])
+
+results <- data.frame(
+  Variete = c("1", "2", "3"),
+  Intercept = intercepts,
+  Slope = slopes)
+
+print(results, row.names = FALSE)
+
+anova(model_2,model_1)
+
+#### Exercice D7 ----
+x1 <- c(-1,0,1,-1,0,1,-1,0,1)
+x2 <- c(-1,-1,-1,0,0,0,1,1,1)
+x1x2 <- x1*x2
+Y <- c(40.4,46.8,53.6,44.6,52.2,54.5,48.8,52.1,56.7)
+
+data <- data.frame(x1, x2,x1x2, Y)
+model <- lm(Y ~ ., data = data)
+summary(model)
+
+model_simple <- lm(Y ~ x1 + x2, data = data)
+summary(model_simple)
+anova(model_simple, model)
+
+
+#### Exercice D9 ----
+poids <- c(12.4,14.6,16.8,18.8,20.4,10.8,12.2,14.3,16.5,18.6)
+doses <- c(0,1,2,3,4,0,1,2,3,4)
+sexe <- as.factor(c("M","M","M","M","M","F","F","F","F","F"))
+
+data <- data.frame(poids, doses,sexe)
+
+ggplot() + geom_point(aes(x=doses,y=poids,col=sexe),data=data) + theme_classic()
+
+model <- lm(poids ~ doses*sexe, data = data)
+summary(model)
+ggplot() + geom_point(aes(x=doses,y=poids,col=sexe),data=data) + 
+  geom_abline(intercept = model$coefficients[1], slope = model$coefficients[2], col = "red") + 
+  geom_abline(intercept = model$coefficients[1] + model$coefficients[3],
+              slope=model$coefficients[2]+model$coefficients[4],col="blue") +
+  theme_classic()
+
+model_simple <- lm(poids ~ doses + sexe, data = data)
+summary(model_simple)
+ggplot() + geom_point(aes(x=doses,y=poids,col=sexe),data=data) + 
+  geom_abline(intercept = model_simple$coefficients[1], slope = model_simple$coefficients[2], col = "red") + 
+  geom_abline(intercept = model_simple$coefficients[1] + model_simple$coefficients[3],
+              slope=model_simple$coefficients[2],col="blue") +
+  theme_classic()
+
+anova(model_simple,model)
